@@ -2,6 +2,13 @@ startCommand:
   type: stdio
   configSchema:
     type: object
-    properties: {}
+    properties:
+      token:
+        type: string
+        description: Copy from ScreenRoll extension → MCP pairing (required).
+    required: [token]
   commandFunction: |-
-    (config) => ({ command: 'npx', args: ['-y', 'screenroll-mcp'] })
+    (config) => ({
+      command: 'npx',
+      args: ['-y', '@screenroll/mcp', '--token', config.token],
+    })

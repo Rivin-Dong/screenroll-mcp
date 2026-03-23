@@ -1,5 +1,5 @@
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
-import { randomUUID } from 'node:crypto';
 import {
   WS_PORT,
   REQUEST_TIMEOUT_MS,
@@ -17,6 +17,7 @@ type PendingEntry = {
 /**
  * WebSocket bridge that connects the MCP server to the ScreenRoll Chrome extension.
  * Listens on 127.0.0.1 only — not exposed to the network.
+ * Requires a shared pairing token (extension shows it; user passes it to this process).
  */
 export class ExtensionBridge {
   private wss: WebSocketServer | null = null;
@@ -25,12 +26,21 @@ export class ExtensionBridge {
   private pending = new Map<string, PendingEntry>();
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
+  constructor(private readonly expectedToken: string) {}
+
   get connected(): boolean {
     return this.socket?.readyState === WebSocket.OPEN;
   }
 
   get connectedExtensionId(): string | null {
     return this.extensionId;
+  }
+
+  private tokensEqual(received: string): boolean {
+    const a = Buffer.from(received, 'utf8');
+    const b = Buffer.from(this.expectedToken, 'utf8');
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
   }
 
   start(): void {
@@ -65,7 +75,7 @@ export class ExtensionBridge {
         id: '',
         success: false,
         error:
-          'ScreenRoll extension is not connected. Make sure Chrome is running with the ScreenRoll extension installed and active.',
+          'ScreenRoll extension is not connected. Open Chrome with ScreenRoll installed; copy the pairing token from the extension into your MCP config.',
       };
     }
 
@@ -88,30 +98,55 @@ export class ExtensionBridge {
   }
 
   private handleConnection(ws: WebSocket): void {
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      this.socket.close(1000, 'Replaced by new connection');
-    }
-
-    this.socket = ws;
-    this.extensionId = null;
+    let authenticated = false;
 
     ws.on('message', (raw) => {
       let msg: Record<string, unknown>;
       try {
         msg = JSON.parse(String(raw));
       } catch {
+        if (!authenticated) ws.close(4000, 'invalid json');
         return;
       }
 
-      if (msg.type === 'auth' && typeof msg.extensionId === 'string') {
-        this.extensionId = msg.extensionId;
-        ws.send(JSON.stringify({ type: 'auth_ok' }));
-        this.startHeartbeat(ws);
+      if (!authenticated) {
+        if (
+          msg.type === 'auth' &&
+          typeof msg.extensionId === 'string' &&
+          typeof msg.token === 'string'
+        ) {
+          if (this.tokensEqual(msg.token)) {
+            authenticated = true;
+            if (this.socket && this.socket !== ws && this.socket.readyState === WebSocket.OPEN) {
+              this.socket.close(1000, 'Replaced by new connection');
+            }
+            this.socket = ws;
+            this.extensionId = msg.extensionId;
+            ws.send(JSON.stringify({ type: 'auth_ok' }));
+            this.startHeartbeat(ws);
+          } else {
+            try {
+              ws.send(JSON.stringify({ type: 'auth_error', error: 'invalid_token' }));
+            } catch {
+              /* ignore */
+            }
+            ws.close(4001, 'invalid token');
+          }
+        } else {
+          try {
+            ws.send(JSON.stringify({ type: 'auth_error', error: 'auth_required' }));
+          } catch {
+            /* ignore */
+          }
+          ws.close(4002, 'auth required');
+        }
         return;
       }
+
+      if (ws !== this.socket) return;
 
       const id = msg.id as string;
-      const entry = this.pending.get(id);
+      const entry = id ? this.pending.get(id) : undefined;
       if (!entry) return;
       clearTimeout(entry.timer);
       this.pending.delete(id);
@@ -123,6 +158,7 @@ export class ExtensionBridge {
         this.socket = null;
         this.extensionId = null;
         if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+        this.heartbeatTimer = null;
       }
     });
 

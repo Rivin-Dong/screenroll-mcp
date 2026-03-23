@@ -1,56 +1,71 @@
-# screenroll-mcp
+# @screenroll/mcp
 
 MCP Server for [ScreenRoll](https://screenroll.app) — let AI agents control screen recording through the [Model Context Protocol](https://modelcontextprotocol.io).
 
-## What it does
+## Security: pairing token (required)
 
-ScreenRoll MCP gives any MCP-compatible AI agent (Cursor, Claude Desktop, Claude Code, OpenClaw, etc.) the ability to **start, pause, resume, and stop** screen recordings via the ScreenRoll Chrome extension — no GUI interaction needed.
+The WebSocket bridge listens on `127.0.0.1:9877`. **A shared secret is mandatory** so other local processes cannot control recording.
+
+1. Open the **ScreenRoll** extension popup in Chrome.
+2. Under **MCP pairing**, copy the token (or use the example JSON shown there).
+3. Pass the same value to this package via **`--token`**, **`SCREENROLL_MCP_TOKEN`**, or **`--token-file`**.
 
 ## Prerequisites
 
 - **Node.js ≥ 18**
-- **ScreenRoll Chrome extension** installed and active in Chrome
-- Chrome must be running while the MCP server is active
+- **ScreenRoll Chrome extension** (with MCP bridge) installed — reload the extension after updating.
+- Chrome running while the MCP server is active
 
-## Quick Start
+## Quick start (Cursor)
 
-### Cursor
-
-Add to your `.cursor/mcp.json`:
+Minimal install is still one `npx` command, but you **must** add the token from the extension:
 
 ```json
 {
   "mcpServers": {
     "screenroll": {
       "command": "npx",
-      "args": ["-y", "screenroll-mcp"]
+      "args": ["-y", "@screenroll/mcp", "--token", "PASTE_TOKEN_FROM_EXTENSION"]
     }
   }
 }
 ```
+
+Using an environment variable (if your client supports `env`):
+
+```json
+{
+  "mcpServers": {
+    "screenroll": {
+      "command": "npx",
+      "args": ["-y", "@screenroll/mcp"],
+      "env": {
+        "SCREENROLL_MCP_TOKEN": "PASTE_TOKEN_FROM_EXTENSION"
+      }
+    }
+  }
+}
+```
+
+Avoid putting secrets in shared configs when possible — use `--token-file`:
+
+```bash
+npx -y @screenroll/mcp --token-file ~/.screenroll-mcp.token
+```
+
+If you start the server **without** a token, it **exits immediately** and prints setup instructions.
 
 ### Claude Desktop
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
-
-```json
-{
-  "mcpServers": {
-    "screenroll": {
-      "command": "npx",
-      "args": ["-y", "screenroll-mcp"]
-    }
-  }
-}
-```
+Same pattern in `claude_desktop_config.json` under `mcpServers.screenroll`.
 
 ### Claude Code
 
 ```bash
-claude mcp add screenroll -- npx -y screenroll-mcp
+claude mcp add screenroll -- npx -y @screenroll/mcp --token YOUR_TOKEN
 ```
 
-## Available Tools
+## Available tools
 
 | Tool | Description |
 |------|-------------|
@@ -58,10 +73,10 @@ claude mcp add screenroll -- npx -y screenroll-mcp
 | `pause_recording` | Pause the current recording |
 | `resume_recording` | Resume a paused recording |
 | `stop_recording` | Stop recording and save the file |
-| `get_status` | Get current state: idle, recording, or paused |
-| `list_recordings` | List recent recordings with metadata |
+| `get_status` | Current state: idle, recording, or paused |
+| `list_recordings` | Recent recordings (metadata) |
 
-### Quality Presets
+### Quality presets
 
 | Value | Resolution | Best for |
 |-------|-----------|----------|
@@ -74,25 +89,12 @@ claude mcp add screenroll -- npx -y screenroll-mcp
 ## How it works
 
 ```
-AI Agent ←— MCP (stdio) —→ screenroll-mcp ←— WebSocket —→ ScreenRoll Extension
+AI Agent ←— MCP (stdio) —→ @screenroll/mcp ←— WebSocket + token —→ ScreenRoll extension
 ```
 
-The MCP server starts a local WebSocket server on `127.0.0.1:9877`. The ScreenRoll Chrome extension connects to it automatically. Commands from the AI agent are translated into Chrome extension messages and executed.
-
-All communication stays on localhost — nothing leaves your machine.
-
-## Example Usage
-
-An agent can say:
-
-> "Record my screen while I demo this feature, then stop when I'm done."
-
-The agent will call:
-1. `start_recording` with `mode: "desktop"` and `quality: "HIGH"`
-2. *(user does the demo)*
-3. `stop_recording`
-
-The recording is saved to `Downloads/ScreenRoll/`.
+- The MCP process listens on **127.0.0.1:9877** for a single authenticated extension connection.
+- The extension generates and stores a token; you copy it into the MCP client config.
+- **Regenerate token** in the extension invalidates the old value — update MCP config after regenerating.
 
 ## License
 

@@ -4,9 +4,11 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { ExtensionBridge } from './bridge.js';
 import { createMcpServer } from './server.js';
 import { WS_PORT } from './types.js';
+import { exitIfMissingToken } from './token.js';
 
 async function main(): Promise<void> {
-  const bridge = new ExtensionBridge();
+  const pairingToken = exitIfMissingToken();
+  const bridge = new ExtensionBridge(pairingToken);
   bridge.start();
 
   const server = createMcpServer(bridge);
