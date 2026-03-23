@@ -26,7 +26,10 @@ export class ExtensionBridge {
   private pending = new Map<string, PendingEntry>();
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(private readonly expectedToken: string) {}
+  constructor(
+    private readonly expectedToken: string,
+    private readonly port: number = WS_PORT,
+  ) {}
 
   get connected(): boolean {
     return this.socket?.readyState === WebSocket.OPEN;
@@ -43,17 +46,28 @@ export class ExtensionBridge {
     return timingSafeEqual(a, b);
   }
 
-  start(): void {
-    this.wss = new WebSocketServer({ host: '127.0.0.1', port: WS_PORT });
-    this.wss.on('connection', (ws) => this.handleConnection(ws));
-    this.wss.on('error', (err) => {
-      if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
-        console.error(
-          `[ScreenRoll MCP] Port ${WS_PORT} is already in use. Is another instance running?`,
-        );
-        process.exit(1);
-      }
-      console.error('[ScreenRoll MCP] WebSocket server error:', err.message);
+  async start(): Promise<void> {
+    if (this.wss) return;
+    await new Promise<void>((resolve, reject) => {
+      const wss = new WebSocketServer({ host: '127.0.0.1', port: this.port });
+      this.wss = wss;
+      let settled = false;
+
+      const fail = (err: Error): void => {
+        if (!settled) {
+          settled = true;
+          reject(err);
+          return;
+        }
+        console.error('[ScreenRoll MCP] WebSocket server error:', err.message);
+      };
+
+      wss.on('connection', (ws) => this.handleConnection(ws));
+      wss.once('listening', () => {
+        settled = true;
+        resolve();
+      });
+      wss.on('error', (err) => fail(err as Error));
     });
   }
 
