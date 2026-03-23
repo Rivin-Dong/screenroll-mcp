@@ -6,7 +6,7 @@ import { createMcpServer } from './server.js';
 import { acquireInstanceLock, resolveWsPort, runDoctor, selfHealPortIfNeeded } from './runtime.js';
 import { exitIfMissingToken } from './token.js';
 import { ErrorCode, toScreenRollMcpError } from './errors.js';
-import { initLogger, logDebug, logError, logInfo } from './log.js';
+import { initLogger, logDebug, logError, logInfo, logWarn } from './log.js';
 
 async function main(): Promise<void> {
   initLogger(process.argv);
@@ -23,6 +23,10 @@ async function main(): Promise<void> {
   const lock = acquireInstanceLock(port);
   const bridge = new ExtensionBridge(pairingToken, port);
   await bridge.start();
+  const probe = await bridge.probeHandshake(5000);
+  if (!probe.ok) {
+    logWarn(`${probe.code}: ${probe.message}`);
+  }
 
   const server = createMcpServer(bridge);
   const transport = new StdioServerTransport();

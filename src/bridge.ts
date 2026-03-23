@@ -25,6 +25,12 @@ export class ExtensionBridge {
   private extensionId: string | null = null;
   private pending = new Map<string, PendingEntry>();
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private lastDisconnectedHint:
+    | {
+        code: string;
+        message: string;
+      }
+    | null = null;
 
   constructor(
     private readonly expectedToken: string,
@@ -37,6 +43,31 @@ export class ExtensionBridge {
 
   get connectedExtensionId(): string | null {
     return this.extensionId;
+  }
+
+  async probeHandshake(timeoutMs = 5000): Promise<{
+    ok: boolean;
+    code?: string;
+    message?: string;
+  }> {
+    if (this.connected) return { ok: true };
+    const started = Date.now();
+    const intervalMs = 125;
+    while (Date.now() - started < timeoutMs) {
+      if (this.connected) return { ok: true };
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+    const diagnostic = {
+      ok: false,
+      code: 'E_HANDSHAKE_TIMEOUT',
+      message:
+        'Extension handshake timed out. Open ScreenRoll extension > MCP Pairing, click Copy once to activate bridge, verify token in mcp.json, then retry. If needed run: npx -y @screenroll/mcp doctor --fix',
+    };
+    this.lastDisconnectedHint = {
+      code: diagnostic.code,
+      message: diagnostic.message,
+    };
+    return diagnostic;
   }
 
   private tokensEqual(received: string): boolean {
@@ -85,11 +116,15 @@ export class ExtensionBridge {
   /** Send a command to the extension and wait for the response. */
   async send(action: BridgeAction, params?: Record<string, unknown>): Promise<BridgeResponse> {
     if (!this.connected) {
+      const hinted = this.lastDisconnectedHint
+        ? ` ${this.lastDisconnectedHint.code}: ${this.lastDisconnectedHint.message}`
+        : '';
       return {
         id: '',
         success: false,
         error:
-          'ScreenRoll extension is not connected. Open Chrome with ScreenRoll installed; copy the pairing token from the extension into your MCP config.',
+          'ScreenRoll extension is not connected. Open Chrome with ScreenRoll installed and ensure MCP pairing is active.' +
+          hinted,
       };
     }
 
@@ -136,6 +171,7 @@ export class ExtensionBridge {
             }
             this.socket = ws;
             this.extensionId = msg.extensionId;
+            this.lastDisconnectedHint = null;
             ws.send(JSON.stringify({ type: 'auth_ok' }));
             this.startHeartbeat(ws);
           } else {

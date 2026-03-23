@@ -65,6 +65,16 @@ npx -y @screenroll/mcp doctor --fix
 
 This checks port `9877`, clears stale ScreenRoll MCP processes, and prints a JSON health report.
 
+### Startup handshake probe (v1.0.3+)
+
+On startup, the MCP server now performs an extension handshake probe (5s timeout).
+If no extension handshake arrives in time, it prints an actionable hint instead of a generic error:
+
+- Open Chrome extension → MCP Pairing
+- Click **Copy** once to activate bridge
+- Verify token in MCP config matches the extension token
+- Run `npx -y @screenroll/mcp doctor --fix` if needed
+
 ### Claude Desktop
 
 Same pattern in `claude_desktop_config.json` under `mcpServers.screenroll`.
