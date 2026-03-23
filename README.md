@@ -55,6 +55,16 @@ npx -y @screenroll/mcp --token-file ~/.screenroll-mcp.token
 
 If you start the server **without** a token, it **exits immediately** and prints setup instructions.
 
+### Built-in doctor / self-heal
+
+If connection is unstable after restarting your MCP client, run:
+
+```bash
+npx -y @screenroll/mcp doctor --fix
+```
+
+This checks port `9877`, clears stale ScreenRoll MCP processes, and prints a JSON health report.
+
 ### Claude Desktop
 
 Same pattern in `claude_desktop_config.json` under `mcpServers.screenroll`.

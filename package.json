@@ -1,6 +1,6 @@
 {
   "name": "@screenroll/mcp",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "MCP Server for ScreenRoll — let AI agents control screen recording via the Model Context Protocol.",
   "keywords": ["mcp", "screen-recording", "screenroll", "ai-agent", "model-context-protocol"],
   "license": "MIT",

@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { ErrorCode, ScreenRollMcpError } from './errors.js';
 
 /**
  * Resolve pairing token from env, --token, or --token-file (in that order).
@@ -29,26 +30,9 @@ export function resolvePairingToken(): string {
 export function exitIfMissingToken(): string {
   const token = resolvePairingToken();
   if (token) return token;
-
-  console.error(`
-[ScreenRoll MCP] Missing pairing token (required for security).
-
-1. Open the ScreenRoll extension popup in Chrome.
-2. Find "MCP pairing" and copy the token.
-3. Add it to your MCP config, for example Cursor ~/.cursor/mcp.json:
-
-   "screenroll": {
-     "command": "npx",
-     "args": ["-y", "@screenroll/mcp", "--token", "PASTE_TOKEN_HERE"]
-   }
-
-   Or use an environment variable (if your client supports it):
-
-   "env": { "SCREENROLL_MCP_TOKEN": "PASTE_TOKEN_HERE" }
-
-Optional: pass a file path instead of embedding the secret:
-
-   --token-file /path/to/screenroll-mcp.token
-`);
-  process.exit(1);
+  throw new ScreenRollMcpError(
+    ErrorCode.MISSING_TOKEN,
+    'Missing pairing token (required for security).',
+    'Open ScreenRoll extension → MCP Pairing → Copy token, then set --token in your MCP config.',
+  );
 }

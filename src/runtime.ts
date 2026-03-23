@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { WS_PORT } from './types.js';
+import { ErrorCode, ScreenRollMcpError } from './errors.js';
 
 type LockHandle = {
   release: () => void;
@@ -13,7 +14,11 @@ export function resolveWsPort(argv: string[]): number {
   if (idx !== -1 && argv[idx + 1]) {
     const parsed = Number(argv[idx + 1]);
     if (Number.isInteger(parsed) && parsed > 0 && parsed <= 65535) return parsed;
-    throw new Error('[ScreenRoll MCP] Invalid --ws-port value. Expected 1-65535.');
+    throw new ScreenRollMcpError(
+      ErrorCode.INVALID_WS_PORT,
+      'Invalid --ws-port value. Expected 1-65535.',
+      'Use --ws-port <1-65535> or remove the flag to use the default 9877.',
+    );
   }
   return WS_PORT;
 }
@@ -66,8 +71,10 @@ export async function selfHealPortIfNeeded(port: number): Promise<void> {
     const cmd = getCommand(pid);
     const isScreenRoll = /screenroll-mcp|@screenroll\/mcp/i.test(cmd);
     if (!isScreenRoll) {
-      throw new Error(
-        `[ScreenRoll MCP] Port ${port} is already used by another app (pid ${pid}). Command: ${cmd || 'unknown'}`,
+      throw new ScreenRollMcpError(
+        ErrorCode.PORT_IN_USE_FOREIGN,
+        `Port ${port} is already used by another app (pid ${pid}). Command: ${cmd || 'unknown'}`,
+        'Stop that process or run ScreenRoll MCP with --ws-port <port>.',
       );
     }
 
@@ -90,8 +97,10 @@ export async function selfHealPortIfNeeded(port: number): Promise<void> {
 
   const stillUsed = listListeningPids(port).filter((pid) => pid !== process.pid);
   if (stillUsed.length > 0) {
-    throw new Error(
-      `[ScreenRoll MCP] Port ${port} is still in use after cleanup attempt (pid ${stillUsed.join(', ')}).`,
+    throw new ScreenRollMcpError(
+      ErrorCode.PORT_STILL_IN_USE,
+      `Port ${port} is still in use after cleanup attempt (pid ${stillUsed.join(', ')}).`,
+      'Retry after 2-3 seconds or choose another port with --ws-port.',
     );
   }
 }
@@ -104,8 +113,10 @@ export function acquireInstanceLock(port: number): LockHandle {
     if (Number.isInteger(prevPid) && prevPid > 0 && isAlive(prevPid)) {
       const cmd = getCommand(prevPid);
       if (/screenroll-mcp|@screenroll\/mcp/i.test(cmd)) {
-        throw new Error(
-          `[ScreenRoll MCP] Another ScreenRoll MCP instance is active (pid ${prevPid}) on port ${port}.`,
+        throw new ScreenRollMcpError(
+          ErrorCode.INSTANCE_ALREADY_RUNNING,
+          `Another ScreenRoll MCP instance is active (pid ${prevPid}) on port ${port}.`,
+          'Close the existing client session or kill the stale process.',
         );
       }
     }
@@ -129,4 +140,26 @@ export function acquireInstanceLock(port: number): LockHandle {
       }
     },
   };
+}
+
+export type DoctorReport = {
+  port: number;
+  listeningPids: Array<{ pid: number; command: string }>;
+  hasLock: boolean;
+  lockPid: number | null;
+  lockPath: string;
+};
+
+export function runDoctor(port: number): DoctorReport {
+  const pids = listListeningPids(port);
+  const listeningPids = pids.map((pid) => ({ pid, command: getCommand(pid) || 'unknown' }));
+  const lockPath = join(tmpdir(), `screenroll-mcp-${port}.lock`);
+  const hasLock = existsSync(lockPath);
+  let lockPid: number | null = null;
+  if (hasLock) {
+    const text = readFileSync(lockPath, 'utf8').trim();
+    const n = Number(text);
+    if (Number.isInteger(n) && n > 0) lockPid = n;
+  }
+  return { port, listeningPids, hasLock, lockPid, lockPath };
 }
