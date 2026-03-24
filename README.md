@@ -6,9 +6,9 @@ MCP Server for [ScreenRoll](https://screenroll.app) — let AI agents control sc
 
 The WebSocket bridge listens on `127.0.0.1:9877`. **A shared secret is mandatory** so other local processes cannot control recording.
 
-1. Open the **ScreenRoll** extension popup in Chrome.
-2. Under **MCP pairing**, copy the token (or use the example JSON shown there).
-3. Pass the same value to this package via **`--token`**, **`SCREENROLL_MCP_TOKEN`**, or **`--token-file`**.
+1. Open the **ScreenRoll** extension popup in Chrome → **MCP Pairing**.
+2. Click **Generate pairing token & enable bridge** once (one-time). After that, the extension reconnects automatically when Cursor starts this MCP server.
+3. Copy the token from the pairing screen into your MCP config (the page shows a ready-to-paste `mcp.json` example), or pass the same value via **`--token`**, **`SCREENROLL_MCP_TOKEN`**, or **`--token-file`**.
 
 ## Prerequisites
 
@@ -67,11 +67,11 @@ This checks port `9877`, clears stale ScreenRoll MCP processes, and prints a JSO
 
 ### Startup handshake probe (v1.0.3+)
 
-On startup, the MCP server now performs an extension handshake probe (5s timeout).
+On startup, the MCP server performs an extension handshake probe (5s timeout).
 If no extension handshake arrives in time, it prints an actionable hint instead of a generic error:
 
 - Open Chrome extension → MCP Pairing
-- Click **Copy** once to activate bridge
+- If you have not set up MCP yet, click **Generate pairing token & enable bridge** once
 - Verify token in MCP config matches the extension token
 - Run `npx -y @screenroll/mcp doctor --fix` if needed
 
@@ -113,7 +113,7 @@ AI Agent ←— MCP (stdio) —→ @screenroll/mcp ←— WebSocket + token —�
 ```
 
 - The MCP process listens on **127.0.0.1:9877** for a single authenticated extension connection.
-- The extension generates and stores a token; you copy it into the MCP client config.
+- The extension creates the token when you enable pairing; you copy it into the MCP client config.
 - **Regenerate token** in the extension invalidates the old value — update MCP config after regenerating.
 
 ## License

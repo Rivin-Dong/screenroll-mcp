@@ -61,7 +61,7 @@ export class ExtensionBridge {
       ok: false,
       code: 'E_HANDSHAKE_TIMEOUT',
       message:
-        'Extension handshake timed out. Open ScreenRoll extension > MCP Pairing, click Copy once to activate bridge, verify token in mcp.json, then retry. If needed run: npx -y @screenroll/mcp doctor --fix',
+        'Extension handshake timed out. Open ScreenRoll extension > MCP Pairing, click Generate pairing token & enable bridge once (one-time), verify token in mcp.json matches, then retry. If needed run: npx -y @screenroll/mcp doctor --fix',
     };
     this.lastDisconnectedHint = {
       code: diagnostic.code,

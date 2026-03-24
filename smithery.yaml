@@ -5,7 +5,7 @@ startCommand:
     properties:
       token:
         type: string
-        description: Copy from ScreenRoll extension → MCP pairing (required).
+        description: From ScreenRoll extension → MCP Pairing after Generate pairing token & enable bridge (required).
     required: [token]
   commandFunction: |-
     (config) => ({

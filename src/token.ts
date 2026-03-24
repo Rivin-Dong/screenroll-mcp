@@ -33,6 +33,6 @@ export function exitIfMissingToken(): string {
   throw new ScreenRollMcpError(
     ErrorCode.MISSING_TOKEN,
     'Missing pairing token (required for security).',
-    'Open ScreenRoll extension → MCP Pairing → Copy token, then set --token in your MCP config.',
+    'Open ScreenRoll extension → MCP Pairing → Generate pairing token & enable bridge, copy the token into mcp.json (or pass --token).',
   );
 }
