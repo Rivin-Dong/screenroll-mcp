@@ -1,6 +1,6 @@
 # @screenroll/mcp
 
-MCP Server for [ScreenRoll](https://screenroll.app) — let AI agents control screen recording through the [Model Context Protocol](https://modelcontextprotocol.io).
+MCP Server for [ScreenRoll](https://screenroll.dev) — let AI agents control screen recording through the [Model Context Protocol](https://modelcontextprotocol.io).
 
 ## Security: pairing token (required)
 
