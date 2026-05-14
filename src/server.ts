@@ -2,10 +2,44 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { ExtensionBridge } from './bridge.js';
 
+/** Optional Face Cam overlay (tab / custom_tab); normalized in the extension. */
+const faceCamSchema = z
+  .object({
+    enabled: z.boolean(),
+    diameterPx: z.number().optional(),
+    previewMirrored: z.boolean().optional(),
+    exportMirrored: z.boolean().optional(),
+    initialLayout: z
+      .object({
+        centerX: z.number().optional(),
+        centerY: z.number().optional(),
+        diameterPx: z.number().optional(),
+        layoutWidth: z.number().optional(),
+        layoutHeight: z.number().optional(),
+      })
+      .optional(),
+    layoutBase: z
+      .object({
+        width: z.number().optional(),
+        height: z.number().optional(),
+      })
+      .optional(),
+    beauty: z
+      .object({
+        enabled: z.boolean().optional(),
+        brightness: z.number().optional(),
+        contrast: z.number().optional(),
+        saturate: z.number().optional(),
+        blurPx: z.number().optional(),
+      })
+      .optional(),
+  })
+  .optional();
+
 export function createMcpServer(bridge: ExtensionBridge): McpServer {
   const server = new McpServer({
     name: 'screenroll-mcp',
-    version: '1.0.3',
+    version: '1.0.5',
   });
 
   /* ------------------------------------------------------------------ */
@@ -14,17 +48,21 @@ export function createMcpServer(bridge: ExtensionBridge): McpServer {
   server.tool(
     'start_recording',
     'Start a new screen recording via the ScreenRoll Chrome extension. ' +
-      'Use mode "tab" to capture the current browser tab, or "desktop" to let the user pick a screen/window.',
+      'Modes: "tab" = current active Chrome tab; "desktop" = system share picker (screen/window); ' +
+      '"custom_tab" = user draws a region on the active tab (Face Cam needs short side ≥ 200 px). ' +
+      'MCP uses the same active tab as the extension popup (frontmost Chrome window).',
     {
       mode: z
-        .enum(['tab', 'desktop'])
+        .enum(['tab', 'desktop', 'custom_tab'])
         .default('tab')
-        .describe('Capture source: current Chrome tab or full screen / window picker'),
+        .describe(
+          'Capture source: current tab, desktop picker, or custom rectangular region on the current tab',
+        ),
       quality: z
         .enum(['LOW', 'MEDIUM', 'HIGH', 'PRESENTATION', 'ULTRA4K'])
         .default('MEDIUM')
         .describe(
-          'Video quality preset. LOW=720p, MEDIUM=1080p balanced, HIGH=1080p sharp, PRESENTATION=1080p for slides, ULTRA4K=4K',
+          'Video quality preset. LOW=720p, MEDIUM=1080p balanced, HIGH=1080p sharper, PRESENTATION=1080p best (max bitrate), ULTRA4K=4K',
         ),
       includeAudio: z
         .boolean()
@@ -34,17 +72,33 @@ export function createMcpServer(bridge: ExtensionBridge): McpServer {
         .boolean()
         .default(false)
         .describe('Mix in microphone audio'),
+      faceCam: faceCamSchema.describe(
+        'Optional Face Cam PiP (webcam) composited into the recording. Requires user camera permission when enabled.',
+      ),
     },
-    async ({ mode, quality, includeAudio, includeMic }) => {
-      const resp = await bridge.send('start_recording', {
+    async ({ mode, quality, includeAudio, includeMic, faceCam }) => {
+      const params: Record<string, unknown> = {
         captureMode: mode,
         quality,
         includeTabAudio: includeAudio,
         includeMic,
-      });
+      };
+      if (faceCam !== undefined) {
+        params.faceCam = faceCam;
+      }
+      const resp = await bridge.send('start_recording', params);
 
       if (!resp.success) {
         return { content: [{ type: 'text', text: `Failed to start recording: ${resp.error}` }] };
+      }
+      let hint =
+        mode === 'desktop'
+          ? 'Recording started. The user may need to select a screen/window in the system dialog.'
+          : mode === 'custom_tab'
+            ? 'Recording started. The user should select a rectangular region on the page.'
+            : 'Recording the current browser tab.';
+      if (faceCam?.enabled) {
+        hint += ' Face Cam enabled — grant camera if prompted.';
       }
       return {
         content: [
@@ -57,9 +111,8 @@ export function createMcpServer(bridge: ExtensionBridge): McpServer {
                 quality,
                 audio: includeAudio,
                 mic: includeMic,
-                message: mode === 'desktop'
-                  ? 'Recording started. The user may need to select a screen/window in the system dialog.'
-                  : 'Recording the current browser tab.',
+                faceCam: faceCam?.enabled === true,
+                message: hint,
               },
               null,
               2,
@@ -139,7 +192,8 @@ export function createMcpServer(bridge: ExtensionBridge): McpServer {
   /* ------------------------------------------------------------------ */
   server.tool(
     'get_status',
-    'Get the current recording status of ScreenRoll (idle, recording, or paused) and session details.',
+    'Get the current recording status (idle/recording/paused), capture mode, tab title, elapsed time, ' +
+      'Face Cam flag, toolbar visibility, and related session fields from the extension.',
     {},
     async () => {
       const resp = await bridge.send('get_status');

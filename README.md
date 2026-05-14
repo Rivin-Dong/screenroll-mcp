@@ -103,7 +103,7 @@ claude mcp add screenroll -- npx -y @screenroll/mcp --token YOUR_TOKEN
 | `LOW` | 720p | Smallest files |
 | `MEDIUM` | 1080p | General use (default) |
 | `HIGH` | 1080p | Sharper detail |
-| `PRESENTATION` | 1080p | Slides and fine text |
+| `PRESENTATION` | 1080p | Best (highest 1080p bitrate) |
 | `ULTRA4K` | 4K | Maximum detail |
 
 ## How it works

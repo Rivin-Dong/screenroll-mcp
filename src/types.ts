@@ -35,7 +35,6 @@ export interface RecordingMeta {
   captureMode: string;
   pageUrl?: string;
   hasThumbnail: boolean;
-  hasAudio: boolean;
 }
 
 export const WS_PORT = 9877;
